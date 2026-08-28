@@ -142,19 +142,25 @@ function listPackFiles(dir, langs, version) {
   return files;
 }
 
+/** Application tables only — `.dump` of the whole DB includes sqlite_stat* from ANALYZE. */
+const D1_DUMP_TABLES = ["meta", "lemmas", "lemma_pos", "variations", "variation_lemmas"];
+
 function skipDumpLine(line) {
   const trimmed = line.trim();
   if (!trimmed) return false;
   if (trimmed === "BEGIN TRANSACTION;") return true;
   if (trimmed === "COMMIT;") return true;
   if (trimmed.startsWith("PRAGMA ")) return true;
+  if (trimmed.startsWith("ANALYZE")) return true;
   if (trimmed.startsWith("CREATE TABLE _cf_KV")) return true;
+  // Query-planner stats (sqlite_stat1/4) — D1 has no sqlite_stat4.
+  if (/\bsqlite_stat\d+\b/.test(trimmed)) return true;
   return false;
 }
 
 function dumpSqliteToD1Sql(sqlitePath, dumpPath) {
   return new Promise((resolveDump, reject) => {
-    const sqlite3 = spawn("sqlite3", [sqlitePath, ".dump"], {
+    const sqlite3 = spawn("sqlite3", [sqlitePath, `.dump ${D1_DUMP_TABLES.join(" ")}`], {
       stdio: ["ignore", "pipe", "pipe"],
     });
     const out = createWriteStream(dumpPath);
