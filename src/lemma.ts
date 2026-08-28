@@ -144,7 +144,7 @@ export async function lookupDictionaryTerm(
     else formHits.push(match);
     if (lemmaHits.length + formHits.length >= cap) break;
   }
-  return lemmaHits.length ? lemmaHits : formHits;
+  return [...lemmaHits, ...formHits];
 }
 
 export async function getDictionaryEntry(

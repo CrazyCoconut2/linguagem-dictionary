@@ -1,4 +1,4 @@
-export const DAILY_QUOTA = 5000;
+export const DAILY_QUOTA = 10_000;
 
 export type QuotaSnapshot = {
   allowed: boolean;

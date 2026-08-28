@@ -37,7 +37,7 @@ npm run deploy:d1 -- --lang cs --remote
 
 All pack routes are `/v1/:lang/…` (`cs|de|en|es|fr|it|pl|pt`) and require
 `Authorization: Bearer <rest-server access JWT>` (`typ=access`). Each Linguagem
-user may make **5,000** pack calls per UTC day; further calls return **429** with
+user may make **10,000** pack calls per UTC day; further calls return **429** with
 `Retry-After` and `X-RateLimit-*` headers. Missing or refresh tokens return **401**.
 
 - `GET /meta`
