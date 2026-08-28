@@ -13,12 +13,21 @@ import {
 } from './lemma';
 import { consumeDailyQuota, quotaHeaders } from './quota';
 
+function isHealthPath(parts: string[]): boolean {
+  return parts.length === 0 || (parts.length === 1 && parts[0] === 'health');
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') return noContent(request);
 
     const url = new URL(request.url);
     const parts = url.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+
+    if (request.method === 'GET' && isHealthPath(parts)) {
+      return health(request, env);
+    }
+
     if (parts[0] !== 'v1' || !parts[1]) {
       return json(request, { error: 'Not found' }, 404);
     }
@@ -65,6 +74,21 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
+
+async function health(request: Request, env: Env): Promise<Response> {
+  if (!env.JWT_SECRET) {
+    return json(request, { ok: false, error: 'Server misconfigured' }, 503);
+  }
+  if (!env.DB_QUOTA) {
+    return json(request, { ok: false, error: 'Quota store unavailable' }, 503);
+  }
+  try {
+    await env.DB_QUOTA.prepare('SELECT 1 AS ok').first();
+  } catch {
+    return json(request, { ok: false, error: 'Quota store unavailable' }, 503);
+  }
+  return json(request, { ok: true });
+}
 
 async function route(
   request: Request,
