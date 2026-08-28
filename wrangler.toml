@@ -2,6 +2,7 @@ name = "linguagem-dictionary-api"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
 account_id = "7b49172998ec40fa56f46a2810b526b9"
+workers_dev = true
 
 # JWT_SECRET via `npx wrangler secret put JWT_SECRET` (same value as rest-server).
 # Local: copy .dev.vars.example to .dev.vars.

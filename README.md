@@ -33,7 +33,8 @@ npm run deploy:d1 -- --lang cs --remote
 
 5. `npm run dev` (http://localhost:8787) or `npm run deploy`.
 
-Production Worker: `https://dictionary-api.linguagem.xyz`
+Production Worker: `https://dictionary-api.linguagem.xyz`  
+Fallback: `https://linguagem-dictionary-api.mohammed-tigrini.workers.dev`
 
 ## GitHub Actions
 
