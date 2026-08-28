@@ -1,15 +1,19 @@
 name = "linguagem-dictionary-api"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
+account_id = "7b49172998ec40fa56f46a2810b526b9"
 
 # JWT_SECRET via `npx wrangler secret put JWT_SECRET` (same value as rest-server).
 # Local: copy .dev.vars.example to .dev.vars.
 
-# Replace each database_id after: wrangler d1 create dict-<name>
+[[routes]]
+pattern = "dictionary-api.linguagem.xyz"
+custom_domain = true
+
 [[d1_databases]]
 binding = "DB_QUOTA"
 database_name = "dict-quota"
-database_id = "REPLACE_ME_QUOTA"
+database_id = "dd3c6183-ee06-4a62-b62a-88b8352c9653"
 
 [[d1_databases]]
 binding = "DB_CS"

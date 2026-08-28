@@ -33,6 +33,25 @@ npm run deploy:d1 -- --lang cs --remote
 
 5. `npm run dev` (http://localhost:8787) or `npm run deploy`.
 
+Production Worker: `https://dictionary-api.linguagem.xyz`
+
+## GitHub Actions
+
+Pushes to `main` (and manual **Run workflow**) typecheck then deploy the Worker.
+Pull requests only typecheck.
+
+Add this repository secret (same token as `linguagem-app`):
+
+- `CLOUDFLARE_API_TOKEN` — Account permission **Workers Scripts: Edit** (and **D1: Edit** if you also import packs from CI)
+
+`JWT_SECRET` is a Wrangler secret on the Worker, not a GitHub secret. Set it once:
+
+```sh
+npx wrangler secret put JWT_SECRET
+```
+
+Use the same value as rest-server production `JWT_SECRET`.
+
 ## HTTP
 
 All pack routes are `/v1/:lang/…` (`cs|de|en|es|fr|it|pl|pt`) and require
