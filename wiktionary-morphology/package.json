@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "filter": "node filter-lang-dumps.js",
+    "filter:cs": "node filter-lang-dumps.js --lang cs",
+    "filter:de": "node filter-lang-dumps.js --lang de",
     "filter:en": "node filter-lang-dumps.js --lang en",
     "filter:es": "node filter-lang-dumps.js --lang es",
     "filter:fr": "node filter-lang-dumps.js --lang fr",
@@ -11,6 +13,8 @@
     "filter:pl": "node filter-lang-dumps.js --lang pl",
     "filter:pt": "node filter-lang-dumps.js --lang pt",
     "build": "node build-all.js --version 2",
+    "build:cs": "node build-morphology.js --lang cs --version 2",
+    "build:de": "node build-morphology.js --lang de --version 2",
     "build:en": "node build-morphology.js --lang en --version 2",
     "build:es": "node build-morphology.js --lang es --version 2",
     "build:fr": "node build-morphology.js --lang fr --version 2",
