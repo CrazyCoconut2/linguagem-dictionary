@@ -14,39 +14,39 @@ database_id = "REPLACE_ME_QUOTA"
 [[d1_databases]]
 binding = "DB_CS"
 database_name = "dict-cs"
-database_id = "REPLACE_ME_CS"
+database_id = "887566ce-5cab-46c7-9636-20a56d7a1334"
 
 [[d1_databases]]
 binding = "DB_DE"
 database_name = "dict-de"
-database_id = "REPLACE_ME_DE"
+database_id = "f58d2df1-bccb-4c9e-8a05-5c9cd383183d"
 
 [[d1_databases]]
 binding = "DB_EN"
 database_name = "dict-en"
-database_id = "REPLACE_ME_EN"
+database_id = "3ee659bb-0d2a-417e-9cf3-fe63e875a1ff"
 
 [[d1_databases]]
 binding = "DB_ES"
 database_name = "dict-es"
-database_id = "REPLACE_ME_ES"
+database_id = "4b033bf3-4509-4ef8-a34b-83a61c3dec54"
 
 [[d1_databases]]
 binding = "DB_FR"
 database_name = "dict-fr"
-database_id = "REPLACE_ME_FR"
+database_id = "c2edd32e-6223-442c-8a05-9a1ec1d7bd16"
 
 [[d1_databases]]
 binding = "DB_IT"
 database_name = "dict-it"
-database_id = "REPLACE_ME_IT"
+database_id = "d16fe055-012c-4297-9ea7-82d1f71c689c"
 
 [[d1_databases]]
 binding = "DB_PL"
 database_name = "dict-pl"
-database_id = "REPLACE_ME_PL"
+database_id = "3719445d-69d0-4974-8093-050cde06fbde"
 
 [[d1_databases]]
 binding = "DB_PT"
 database_name = "dict-pt"
-database_id = "REPLACE_ME_PT"
+database_id = "9ed03063-07e0-4081-aac4-ca423b2b0b71"
