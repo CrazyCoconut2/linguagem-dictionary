@@ -12,7 +12,6 @@
  *                   else cs de en es fr it pl pt)
  *   --workers N     Forwarded to build-morphology.js
  *   --limit N       Forwarded to build-morphology.js
- *   --no-senses     Forwarded to build-morphology.js
  *   --all-sense-editions  Forwarded to build-morphology.js
  *   --help
  */
@@ -48,7 +47,7 @@ function parseArgs(argv) {
         throw new Error(`${arg} expects a value`);
       }
       opts.forward.push(arg, value);
-    } else if (arg === "--no-senses" || arg === "--all-sense-editions") {
+    } else if (arg === "--all-sense-editions") {
       opts.forward.push(arg);
     } else if (arg.startsWith("-")) {
       throw new Error(`Unknown option: ${arg}`);
@@ -71,7 +70,6 @@ Options:
   --lang CODE     Only this language (repeatable)
   --workers N     Forwarded to build-morphology.js
   --limit N       Forwarded to build-morphology.js
-  --no-senses     Forwarded to build-morphology.js
   --all-sense-editions  Forwarded to build-morphology.js
   --help          Show this help`);
 }

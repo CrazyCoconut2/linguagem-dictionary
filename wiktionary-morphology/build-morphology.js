@@ -19,7 +19,6 @@
  *   --out [PATH]    Output path (default: wiktionary-morphology-packs/<lang>.sqlite)
  *   --workers N     Worker threads (default: CPU count)
  *   --limit N       Stop after N scanned lines (smoke test)
- *   --no-senses     Skip glosses/examples (morphology-only pack)
  *   --all-sense-editions  Keep glosses from every Wiktionary edition (default: native edition only)
  *   --help
  */
@@ -79,7 +78,6 @@ function parseArgs(argv) {
     out: null,
     workers: cpus().length || 4,
     limit: Infinity,
-    includeSenses: true,
     nativeSensesOnly: true,
     help: false,
   };
@@ -113,8 +111,6 @@ function parseArgs(argv) {
         throw new Error("--limit expects a positive number");
       }
       opts.limit = n;
-    } else if (arg === "--no-senses") {
-      opts.includeSenses = false;
     } else if (arg === "--all-sense-editions") {
       opts.nativeSensesOnly = false;
     } else if (arg.startsWith("-")) {
@@ -145,7 +141,6 @@ Options:
   --out [PATH]    Output path (default: wiktionary-morphology-packs/<lang>.sqlite)
   --workers N     Worker threads (default: CPU count)
   --limit N       Stop after N scanned lines (smoke test)
-  --no-senses     Skip glosses/examples (morphology-only; meta.senses=0)
   --all-sense-editions  Keep glosses from every edition (default: native only)
   --help          Show this help`);
 }
@@ -213,9 +208,8 @@ function createWorkerPool(size) {
 /**
  * @param {Map<string, { forms: Set<string>, senses: Array<{ glosses: string[], examples?: string[] }>, senseKeys: Set<string> }>} map
  * @param {Array<{ r: string, p: string, forms: string[], senses?: Array<{ glosses: string[], examples?: string[] }> }>} deltas
- * @param {boolean} includeSenses
  */
-function mergeDeltas(map, deltas, includeSenses) {
+function mergeDeltas(map, deltas) {
   for (const { r, p, forms, senses } of deltas) {
     const key = `${r}\0${p}`;
     let bucket = map.get(key);
@@ -226,13 +220,11 @@ function mergeDeltas(map, deltas, includeSenses) {
     for (const form of forms) {
       if (form && form !== r) bucket.forms.add(form);
     }
-    if (includeSenses) {
-      for (const sense of senses ?? []) {
-        const sk = senseDedupeKey(sense);
-        if (bucket.senseKeys.has(sk)) continue;
-        bucket.senseKeys.add(sk);
-        bucket.senses.push(sense);
-      }
+    for (const sense of senses ?? []) {
+      const sk = senseDedupeKey(sense);
+      if (bucket.senseKeys.has(sk)) continue;
+      bucket.senseKeys.add(sk);
+      bucket.senses.push(sense);
     }
   }
 }
@@ -268,7 +260,7 @@ async function scanDump(filePath, { pool, map, filterOpts, state, maxInFlight })
     if (result.malformed) {
       console.error(`\nSkipped ${result.malformed} malformed JSON line(s) in a batch`);
     }
-    mergeDeltas(map, result.deltas, filterOpts.includeSenses !== false);
+    mergeDeltas(map, result.deltas);
     printProgress();
     if (state.scanned >= state.limit) stop = true;
   };
@@ -362,16 +354,13 @@ async function main() {
   console.error(`Version: ${opts.version}`);
   console.error(`Output: ${outPath}`);
   console.error(`Workers: ${opts.workers}`);
-  console.error(`Senses: ${opts.includeSenses ? "on" : "off (--no-senses)"}`);
-  if (opts.includeSenses) {
-    console.error(
-      `Sense editions: ${
-        opts.nativeSensesOnly
-          ? "native only (same-language Wiktionary)"
-          : "all (--all-sense-editions)"
-      }`,
-    );
-  }
+  console.error(
+    `Sense editions: ${
+      opts.nativeSensesOnly
+        ? "native only (same-language Wiktionary)"
+        : "all (--all-sense-editions)"
+    }`,
+  );
   console.error(`Dumps (${files.length}), first-come / add missing variations:`);
   for (const [i, filePath] of files.entries()) {
     const tag = i === 0 ? "primary" : "enrich";
@@ -385,7 +374,6 @@ async function main() {
   const map = new Map();
   const filterOpts = {
     lang: opts.lang,
-    includeSenses: opts.includeSenses,
     nativeSensesOnly: opts.nativeSensesOnly,
   };
   const maxInFlight = opts.workers * 2;
@@ -418,15 +406,9 @@ async function main() {
     await pool.close();
   }
 
-  // Drop empty buckets; with --no-senses, require at least one form (forms-only membership)
+  // Drop empty buckets (no forms and no senses)
   for (const [key, bucket] of map) {
-    if (opts.includeSenses) {
-      if (!bucket.forms.size && !bucket.senses.length) map.delete(key);
-    } else if (!bucket.forms.size) {
-      map.delete(key);
-    } else {
-      bucket.senses = [];
-    }
+    if (!bucket.forms.size && !bucket.senses.length) map.delete(key);
   }
   stripSenseKeys(map);
 
@@ -436,7 +418,6 @@ async function main() {
   const result = await writeSqlitePack(outPath, map, {
     lang: opts.lang,
     version: opts.version,
-    includeSenses: opts.includeSenses,
     onProgress: writeStatus,
   });
   process.stderr.write("\n");
