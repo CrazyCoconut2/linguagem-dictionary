@@ -11,12 +11,7 @@ import {
   listSenseStatsForLemmas,
   lookupDictionaryTerm,
 } from './lemma';
-import {
-  resolveDictionaryElementLinguistics,
-  resolveDictionaryElementsLinguistics,
-} from './pattern-linguistics';
 import { consumeDailyQuota, quotaHeaders } from './quota';
-import { resolveDictionaryPatterns, type DictionaryPatternResolutionQuery } from './resolve';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -131,32 +126,6 @@ async function route(
       return json(request, await listSenseStatsForLemmas(db, lemmas));
     }
     return json(request, await listEntriesForLemmas(db, lemmas));
-  }
-
-  if (method === 'POST' && head === 'resolve-patterns' && rest.length === 1) {
-    const query = (await request.json()) as DictionaryPatternResolutionQuery;
-    const result = await resolveDictionaryPatterns(db, { ...query, language: lang });
-    return json(request, result);
-  }
-
-  if (method === 'POST' && head === 'resolve-linguistics' && rest.length === 1) {
-    const body = (await request.json()) as { lemma?: string; patterns?: string[] };
-    const result = await resolveDictionaryElementLinguistics(
-      db,
-      lang,
-      String(body.lemma ?? ''),
-      Array.isArray(body.patterns) ? body.patterns : [],
-    );
-    return json(request, result);
-  }
-
-  if (method === 'POST' && head === 'resolve-linguistics' && rest[1] === 'batch') {
-    const body = (await request.json()) as {
-      items?: Array<{ lemma: string; patterns: string[] }>;
-    };
-    const items = Array.isArray(body.items) ? body.items : [];
-    const result = await resolveDictionaryElementsLinguistics(db, lang, items);
-    return json(request, result);
   }
 
   return json(request, { error: 'Not found' }, 404);

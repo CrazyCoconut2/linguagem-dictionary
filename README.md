@@ -1,6 +1,7 @@
 # linguagem-dictionary-api
 
-Cloudflare Worker + one D1 database per language. The learner app looks up lemmas, forms, and patterns on demand — it does not download SQLite packs.
+Cloudflare Worker + one D1 database per language. The learner app looks up
+lemmas and surface forms on demand — it does not download SQLite packs.
 
 ## Setup
 
@@ -40,11 +41,8 @@ user may make **5,000** pack calls per UTC day; further calls return **429** wit
 `Retry-After` and `X-RateLimit-*` headers. Missing or refresh tokens return **401**.
 
 - `GET /meta`
-- `GET /lookup?q=&limit=`
+- `GET /lookup?q=&limit=` — exact lemma or variation
 - `GET /pos`
 - `GET /lemmas/:lemma`
 - `GET /lemmas/:lemma/forms`
 - `POST /lemmas/batch` `{ lemmas, stats? }`
-- `POST /resolve-patterns`
-- `POST /resolve-linguistics` `{ lemma, patterns }`
-- `POST /resolve-linguistics/batch` `{ items }`
