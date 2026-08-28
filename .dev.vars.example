@@ -1,0 +1,2 @@
+# Same value as rest-server JWT_SECRET. Copy to .dev.vars for local wrangler.
+JWT_SECRET=change-me-local

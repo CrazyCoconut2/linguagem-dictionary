@@ -1,0 +1,52 @@
+name = "linguagem-dictionary-api"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# JWT_SECRET via `npx wrangler secret put JWT_SECRET` (same value as rest-server).
+# Local: copy .dev.vars.example to .dev.vars.
+
+# Replace each database_id after: wrangler d1 create dict-<name>
+[[d1_databases]]
+binding = "DB_QUOTA"
+database_name = "dict-quota"
+database_id = "REPLACE_ME_QUOTA"
+
+[[d1_databases]]
+binding = "DB_CS"
+database_name = "dict-cs"
+database_id = "REPLACE_ME_CS"
+
+[[d1_databases]]
+binding = "DB_DE"
+database_name = "dict-de"
+database_id = "REPLACE_ME_DE"
+
+[[d1_databases]]
+binding = "DB_EN"
+database_name = "dict-en"
+database_id = "REPLACE_ME_EN"
+
+[[d1_databases]]
+binding = "DB_ES"
+database_name = "dict-es"
+database_id = "REPLACE_ME_ES"
+
+[[d1_databases]]
+binding = "DB_FR"
+database_name = "dict-fr"
+database_id = "REPLACE_ME_FR"
+
+[[d1_databases]]
+binding = "DB_IT"
+database_name = "dict-it"
+database_id = "REPLACE_ME_IT"
+
+[[d1_databases]]
+binding = "DB_PL"
+database_name = "dict-pl"
+database_id = "REPLACE_ME_PL"
+
+[[d1_databases]]
+binding = "DB_PT"
+database_name = "dict-pt"
+database_id = "REPLACE_ME_PT"
