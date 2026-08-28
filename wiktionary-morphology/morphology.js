@@ -4,11 +4,21 @@ const NON_FORM_TAGS = new Set([
   "table-tags",
   "inflection-template",
   "multiword-construction",
+  "prefix",
+  "suffix",
+  "infix",
+  "interfix",
+  "circumfix",
+  "affix",
+  "combining-form",
+  "combining_form",
+  "stem",
 ]);
 
 /**
  * POS values dropped entirely (not useful for lemma ↔ form morphology).
  * unknown, num, onomatopoeia, character, phrase, symbol, proverb, punct/punctuation
+ * prefix, suffix, infix, interfix, circumfix, affix, combining_form
  */
 export const SKIP_POS = new Set([
   "unknown",
@@ -20,6 +30,14 @@ export const SKIP_POS = new Set([
   "proverb",
   "punct",
   "punctuation",
+  "prefix",
+  "suffix",
+  "infix",
+  "interfix",
+  "circumfix",
+  "affix",
+  "combining_form",
+  "combining-form",
 ]);
 
 /**
@@ -58,9 +76,15 @@ export function isNativeGlossEntry(entry, lang) {
  */
 const ROOT_BAD = /[\p{P}\p{S}!]/u;
 const ROOT_ALLOWED_PUNCT = /['’ʼ-]/g;
+const HAS_LETTER = /\p{L}/u;
 
 function rootHasBadChars(r) {
   return ROOT_BAD.test(r.replace(ROOT_ALLOWED_PUNCT, ""));
+}
+
+/** Surface forms / roots need at least one letter (skip "-", "--", "…", "3"). */
+function hasLetter(s) {
+  return HAS_LETTER.test(s);
 }
 
 export function isProperNoun(entry) {
@@ -269,7 +293,7 @@ export function extractDeltas(entry, lang, opts = {}) {
 
   const ensure = (r, p) => {
     if (!r || !p) return null;
-    if (rootHasBadChars(r)) return null;
+    if (rootHasBadChars(r) || !hasLetter(r)) return null;
     const key = `${r}\0${p}`;
     let bucket = local.get(key);
     if (!bucket) {
@@ -283,7 +307,7 @@ export function extractDeltas(entry, lang, opts = {}) {
     const bucket = ensure(r, p);
     if (!bucket || !form) return;
     const cleaned = stripParentheticals(form);
-    if (!cleaned || cleaned === r) return;
+    if (!cleaned || cleaned === r || !hasLetter(cleaned)) return;
     bucket.forms.add(cleaned);
   };
 
