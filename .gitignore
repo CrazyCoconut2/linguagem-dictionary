@@ -4,3 +4,8 @@ node_modules/
 dist/
 *.sqlite
 *.sqlite.gz
+wiktionary-morphology/node_modules/
+wiktionary-morphology/.env
+wiktionary-morphology/wiktionary-raw/
+wiktionary-morphology/wiktionary-lang/
+wiktionary-morphology/wiktionary-morphology-packs/

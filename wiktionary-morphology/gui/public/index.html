@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dictionary</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css?v=3" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="page-header">
+        <div class="entries-toolbar">
+          <div class="search-wrap">
+            <input
+              id="search"
+              class="search-input"
+              type="search"
+              placeholder="Search dictionary…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+
+          <div class="toolbar-actions">
+            <label class="lang-label" title="Language pack">
+              <select id="lang" aria-label="Language"></select>
+            </label>
+
+            <div class="toolbar-menu" id="filterMenu">
+              <button
+                type="button"
+                class="toolbar-icon-btn"
+                id="filterBtn"
+                aria-label="Filter by part of speech"
+                aria-expanded="false"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M3 5h18v2.2L14 14v5l-4 2v-7L3 7.2V5z"
+                  />
+                </svg>
+                <span class="toolbar-filter-count" id="filterCount" hidden>0</span>
+              </button>
+              <div class="toolbar-popover" id="filterPopover" hidden></div>
+            </div>
+
+            <div class="toolbar-menu" id="sortMenu">
+              <button
+                type="button"
+                class="toolbar-icon-btn"
+                id="sortBtn"
+                aria-label="Sort"
+                aria-expanded="false"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M8 4h2v12.2l2.6-2.6 1.4 1.4L9 20l-5-5 1.4-1.4L8 16.2V4zm8 16h-2V7.8l-2.6 2.6-1.4-1.4L15 4l5 5-1.4 1.4L16 7.8V20z"
+                  />
+                </svg>
+              </button>
+              <div class="toolbar-popover" id="sortPopover" hidden>
+                <button type="button" class="popover-option" data-sort="lemma-asc">
+                  Lemma A–Z
+                </button>
+                <button type="button" class="popover-option" data-sort="lemma-desc">
+                  Lemma Z–A
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="list-toolbar">
+          <span class="list-count" id="listCount">—</span>
+          <div class="dict-pager">
+            <button type="button" class="pager-btn" id="prevBtn" disabled aria-label="Previous page">
+              ‹
+            </button>
+            <span class="pager-label" id="pageInfo">1 / 1</span>
+            <button type="button" class="pager-btn" id="nextBtn" disabled aria-label="Next page">
+              ›
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main class="app-main" id="main">
+        <div class="empty-state" id="empty">
+          <p class="empty-title">Loading…</p>
+        </div>
+        <div class="entry-masonry" id="masonry" hidden>
+          <div class="entry-grid" id="grid"></div>
+        </div>
+      </main>
+    </div>
+
+    <dialog class="lookup-modal" id="modal">
+      <form method="dialog" class="modal-card">
+        <header class="modal-header">
+          <h2 id="modalLemma"></h2>
+          <button type="submit" class="modal-close" aria-label="Close">×</button>
+        </header>
+        <div class="modal-body">
+          <div class="pos-pills" id="modalPos"></div>
+          <p class="modal-meta" id="modalMeta"></p>
+          <section class="modal-defs" id="modalSenses" hidden>
+            <h3 class="modal-section">Definitions</h3>
+            <div id="modalSensesBody"></div>
+          </section>
+          <details class="modal-raw" id="modalRaw" hidden>
+            <summary>Raw sense JSON</summary>
+            <pre id="modalRawBody"></pre>
+          </details>
+          <section class="modal-forms-section">
+            <h3 class="modal-section">Forms</h3>
+            <ul class="modal-forms" id="modalForms"></ul>
+          </section>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="/app.js?v=3" type="module"></script>
+  </body>
+</html>

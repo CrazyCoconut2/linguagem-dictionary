@@ -1,0 +1,29 @@
+{
+  "name": "wiktionary-morphology",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "filter": "node filter-lang-dumps.js",
+    "build": "node build-all.js --version 2",
+    "build:en": "node build-morphology.js --lang en --version 2",
+    "build:en:no-senses": "node build-morphology.js --lang en --version 2 --no-senses",
+    "build:es": "node build-morphology.js --lang es --version 2",
+    "build:es:no-senses": "node build-morphology.js --lang es --version 2 --no-senses",
+    "build:fr": "node build-morphology.js --lang fr --version 2",
+    "build:fr:no-senses": "node build-morphology.js --lang fr --version 2 --no-senses",
+    "build:it": "node build-morphology.js --lang it --version 2",
+    "build:it:no-senses": "node build-morphology.js --lang it --version 2 --no-senses",
+    "build:pl": "node build-morphology.js --lang pl --version 2",
+    "build:pl:no-senses": "node build-morphology.js --lang pl --version 2 --no-senses",
+    "build:pt": "node build-morphology.js --lang pt --version 2",
+    "build:pt:no-senses": "node build-morphology.js --lang pt --version 2 --no-senses",
+    "deploy:d1": "node deploy-d1.js",
+    "deploy:d1:en": "node deploy-d1.js --lang en",
+    "deploy:d1:all": "node deploy-d1.js --lang all",
+    "size": "node size-packs.js",
+    "gui": "node gui/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  }
+}

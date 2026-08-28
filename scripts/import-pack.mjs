@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * Dump a morphology sqlite pack into D1-compatible SQL and import it.
- * Prefer `npm run deploy:d1` in wiktionary-morphology for the usual path.
+ * Prefer `npm run deploy:d1` (wiktionary-morphology/) for the usual path.
  *
  * Usage:
- *   node scripts/import-pack.mjs --lang cs --sqlite ../wiktionary-morphology/wiktionary-morphology-packs/cs.sqlite --local
+ *   node scripts/import-pack.mjs --lang cs --sqlite wiktionary-morphology/wiktionary-morphology-packs/cs.sqlite --local
  *   node scripts/import-pack.mjs --lang en --sqlite path/to/en.sqlite --remote
  */
 import { spawnSync } from 'node:child_process';

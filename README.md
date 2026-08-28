@@ -23,10 +23,9 @@ npx wrangler secret put JWT_SECRET
 
 Local wrangler: copy `.dev.vars.example` to `.dev.vars`.
 
-4. Import packs from `wiktionary-morphology` (dumps `.sqlite` into D1):
+4. Import packs from `wiktionary-morphology/` (dumps `.sqlite` into D1):
 
 ```sh
-cd ../wiktionary-morphology
 npm run deploy:d1 -- --lang cs --remote
 # or: npm run deploy:d1:all
 ```

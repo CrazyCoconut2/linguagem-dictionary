@@ -7,7 +7,10 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "import:local": "node scripts/import-pack.mjs --local",
-    "import:remote": "node scripts/import-pack.mjs --remote"
+    "import:remote": "node scripts/import-pack.mjs --remote",
+    "deploy:d1": "npm --prefix wiktionary-morphology run deploy:d1",
+    "deploy:d1:en": "npm --prefix wiktionary-morphology run deploy:d1:en",
+    "deploy:d1:all": "npm --prefix wiktionary-morphology run deploy:d1:all"
   },
   "dependencies": {
     "learner": "file:../linguagem-app/packages/learner"
