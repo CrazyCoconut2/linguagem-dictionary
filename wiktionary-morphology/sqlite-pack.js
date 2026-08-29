@@ -5,7 +5,8 @@
  * Output: <lang>.sqlite
  * Pack version lives in meta.version (not the filename).
  *
- * Schema is prefix-oriented (PK / B-tree on lemma + form). No FTS / reverse indexes.
+ * Indexed on lemma + form PKs (B-tree). No FTS.
+ * Exact lookup uses equality; contains uses LIKE '%q%'.
  *
  * Memory: writes by consuming the input map (no full byTerm/formToLemmas duplicate).
  */

@@ -2,13 +2,20 @@ const ACCESS_TYPE = 'access';
 
 export async function verifyAccessJwt(
   request: Request,
-  secret: string | undefined,
+  secrets: string | readonly string[] | undefined,
 ): Promise<string | null> {
-  if (!secret) return null;
+  const list = (Array.isArray(secrets) ? [...secrets] : [secrets])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  if (!list.length) return null;
   const header = request.headers.get('Authorization') ?? '';
   const match = /^Bearer\s+(\S+)/i.exec(header.trim());
   if (!match) return null;
-  return verifyHs256AccessToken(match[1], secret);
+  for (const secret of list) {
+    const userId = await verifyHs256AccessToken(match[1], secret);
+    if (userId) return userId;
+  }
+  return null;
 }
 
 export async function verifyHs256AccessToken(

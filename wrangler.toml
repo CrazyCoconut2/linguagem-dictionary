@@ -4,17 +4,22 @@ compatibility_date = "2026-08-01"
 account_id = "7b49172998ec40fa56f46a2810b526b9"
 workers_dev = true
 
-# JWT_SECRET via `npx wrangler secret put JWT_SECRET` (same value as rest-server).
+# JWT secrets via wrangler (same values as rest-server per env):
+#   npx wrangler secret put JWT_SECRET            # production
+#   npx wrangler secret put JWT_SECRET_STAGING    # staging
 # Local: copy .dev.vars.example to .dev.vars.
 
 [[routes]]
 pattern = "dictionary-api.linguagem.xyz"
 custom_domain = true
 
-[[d1_databases]]
-binding = "DB_QUOTA"
-database_name = "dict-quota"
-database_id = "dd3c6183-ee06-4a62-b62a-88b8352c9653"
+[[ratelimits]]
+name = "RATE_LIMIT"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 10
+  period = 10
 
 [[d1_databases]]
 binding = "DB_CS"

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Local GUI to verify morphology SQLite pattern search.
+ * Local GUI to browse morphology SQLite packs (exact / contains lookup).
  *
  * Usage:
  *   npm run gui
@@ -18,7 +18,6 @@ import {
   listPos,
   openPack,
   queryDictionaryPage,
-  searchMorphology,
 } from "../search.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -153,15 +152,6 @@ function serveStatic(req, res, urlPath) {
   res.end(body);
 }
 
-async function readBody(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  if (!chunks.length) return {};
-  const raw = Buffer.concat(chunks).toString("utf8");
-  if (!raw) return {};
-  return JSON.parse(raw);
-}
-
 function handleApi(req, res, packsDir, url) {
   const path = url.pathname;
 
@@ -196,28 +186,6 @@ function handleApi(req, res, packsDir, url) {
     const lang = url.searchParams.get("lang") ?? "";
     const { db } = getDb(packsDir, lang);
     sendJson(res, 200, { lang, pos: listPos(db) });
-    return;
-  }
-
-  if (req.method === "GET" && path === "/api/search") {
-    const lang = url.searchParams.get("lang") ?? "";
-    const pattern = url.searchParams.get("pattern") ?? "";
-    const scope = url.searchParams.get("scope") ?? "all";
-    const pos = (url.searchParams.get("pos") ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const limit = Number(url.searchParams.get("limit") ?? 50);
-    const offset = Number(url.searchParams.get("offset") ?? 0);
-    const { db } = getDb(packsDir, lang);
-    const result = searchMorphology(db, {
-      pattern,
-      scope,
-      pos,
-      limit: Number.isFinite(limit) ? limit : 50,
-      offset: Number.isFinite(offset) ? offset : 0,
-    });
-    sendJson(res, 200, { lang, ...result });
     return;
   }
 
@@ -284,11 +252,6 @@ function handleApi(req, res, packsDir, url) {
     return;
   }
 
-  if (req.method === "POST" && path === "/api/search") {
-    // body handled by caller with async
-    return false;
-  }
-
   sendJson(res, 404, { error: "unknown api route" });
   return true;
 }
@@ -316,20 +279,6 @@ Options:
       const url = new URL(req.url ?? "/", `http://${host}`);
 
       if (url.pathname.startsWith("/api/")) {
-        if (req.method === "POST" && url.pathname === "/api/search") {
-          const body = await readBody(req);
-          const lang = String(body.lang ?? "");
-          const { db } = getDb(opts.packs, lang);
-          const result = searchMorphology(db, {
-            pattern: String(body.pattern ?? ""),
-            scope: body.scope ?? "all",
-            pos: Array.isArray(body.pos) ? body.pos : [],
-            limit: body.limit,
-            offset: body.offset,
-          });
-          sendJson(res, 200, { lang, ...result });
-          return;
-        }
         handleApi(req, res, opts.packs, url);
         return;
       }
@@ -344,7 +293,7 @@ Options:
 
   server.listen(opts.port, opts.host, () => {
     const langs = listLanguages(opts.packs);
-    console.error(`Morphology search GUI`);
+    console.error(`Morphology pack GUI`);
     console.error(`  http://${opts.host}:${opts.port}/`);
     console.error(`  packs: ${opts.packs}`);
     console.error(

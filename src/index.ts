@@ -1,6 +1,11 @@
 import { verifyAccessJwt } from './auth';
 import { json, noContent, withHeaders } from './cors';
-import { databaseFor, isDictionaryLanguage, type Env } from './env';
+import {
+  databaseFor,
+  isDictionaryLanguage,
+  jwtSecretsFromEnv,
+  type Env,
+} from './env';
 import {
   getDictionaryEntry,
   getLemmaDetail,
@@ -11,7 +16,7 @@ import {
   listSenseStatsForLemmas,
   lookupDictionaryTerm,
 } from './lemma';
-import { consumeDailyQuota, quotaHeaders } from './quota';
+import { RATE_LIMIT_HEADERS, rateLimitedHeaders } from './quota';
 
 function isHealthPath(parts: string[]): boolean {
   return parts.length === 0 || (parts.length === 1 && parts[0] === 'health');
@@ -32,60 +37,52 @@ export default {
       return json(request, { error: 'Not found' }, 404);
     }
 
-    if (!env.JWT_SECRET) {
+    const secrets = jwtSecretsFromEnv(env);
+    if (!secrets.length) {
       return json(request, { error: 'Server misconfigured' }, 500);
     }
-    const userId = await verifyAccessJwt(request, env.JWT_SECRET);
+    const userId = await verifyAccessJwt(request, secrets);
     if (!userId) {
       return json(request, { error: 'Unauthorized' }, 401);
     }
 
-    if (!env.DB_QUOTA) {
-      return json(request, { error: 'Quota store unavailable' }, 503);
+    if (!env.RATE_LIMIT) {
+      return json(request, { error: 'Rate limiter unavailable' }, 503);
     }
-    const quota = await consumeDailyQuota(env.DB_QUOTA, userId);
-    const limits = quotaHeaders(quota);
-    if (!quota.allowed) {
-      return json(request, { error: 'Daily dictionary quota exceeded' }, 429, {
-        ...limits,
-        'Retry-After': String(quota.retryAfterSeconds),
-      });
+    const { success } = await env.RATE_LIMIT.limit({ key: userId });
+    if (!success) {
+      return json(request, { error: 'Daily dictionary quota exceeded' }, 429, rateLimitedHeaders());
     }
 
     const lang = parts[1].toLowerCase();
     if (!isDictionaryLanguage(lang)) {
-      return json(request, { error: `Unknown language "${lang}"` }, 404, limits);
+      return json(request, { error: `Unknown language "${lang}"` }, 404, RATE_LIMIT_HEADERS);
     }
     const db = databaseFor(env, lang);
     if (!db) {
-      return json(request, { error: `No dictionary for "${lang}"` }, 503, limits);
+      return json(request, { error: `No dictionary for "${lang}"` }, 503, RATE_LIMIT_HEADERS);
     }
 
     try {
       const response = await route(request, url, parts.slice(2), db, lang);
-      return withHeaders(response, limits);
+      return withHeaders(response, RATE_LIMIT_HEADERS);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message === 'Cancelled' && err instanceof Error && err.name === 'AbortError') {
-        return json(request, { error: 'Cancelled' }, 499, limits);
+        return json(request, { error: 'Cancelled' }, 499, RATE_LIMIT_HEADERS);
       }
       console.error(message);
-      return json(request, { error: message }, 500, limits);
+      return json(request, { error: message }, 500, RATE_LIMIT_HEADERS);
     }
   },
 } satisfies ExportedHandler<Env>;
 
 async function health(request: Request, env: Env): Promise<Response> {
-  if (!env.JWT_SECRET) {
+  if (!jwtSecretsFromEnv(env).length) {
     return json(request, { ok: false, error: 'Server misconfigured' }, 503);
   }
-  if (!env.DB_QUOTA) {
-    return json(request, { ok: false, error: 'Quota store unavailable' }, 503);
-  }
-  try {
-    await env.DB_QUOTA.prepare('SELECT 1 AS ok').first();
-  } catch {
-    return json(request, { ok: false, error: 'Quota store unavailable' }, 503);
+  if (!env.RATE_LIMIT) {
+    return json(request, { ok: false, error: 'Rate limiter unavailable' }, 503);
   }
   return json(request, { ok: true });
 }

@@ -9,20 +9,18 @@ lemmas and surface forms on demand — it does not download SQLite packs.
 2. Create databases and paste the IDs into `wrangler.toml`:
 
 ```sh
-npx wrangler d1 create dict-quota
 npx wrangler d1 create dict-cs
 # … dict-de dict-en dict-es dict-fr dict-it dict-pl dict-pt
 ```
 
-3. Apply the quota schema and set the JWT secret (same value as rest-server `JWT_SECRET`):
+3. Set JWT secrets (same values as rest-server per env). One Worker serves both production and staging apps:
 
 ```sh
-npx wrangler d1 execute dict-quota --file=schema/quota.sql
-npx wrangler d1 execute dict-quota --remote --file=schema/quota.sql
 npx wrangler secret put JWT_SECRET
+npx wrangler secret put JWT_SECRET_STAGING
 ```
 
-Local wrangler: copy `.dev.vars.example` to `.dev.vars`.
+Local wrangler: copy `.dev.vars.example` to `.dev.vars`. Wrangler 4.36+ (rate limiting binding).
 
 4. Import packs from `wiktionary-morphology/` (dumps `.sqlite` into D1):
 
@@ -45,24 +43,26 @@ Add this repository secret (same token as `linguagem-app`):
 
 - `CLOUDFLARE_API_TOKEN` — Account permission **Workers Scripts: Edit** (and **D1: Edit** if you also import packs from CI)
 
-`JWT_SECRET` is a Wrangler secret on the Worker, not a GitHub secret. Set it once:
+JWT secrets are Wrangler secrets on the Worker, not GitHub secrets:
 
 ```sh
-npx wrangler secret put JWT_SECRET
+npx wrangler secret put JWT_SECRET            # rest-server production JWT_SECRET
+npx wrangler secret put JWT_SECRET_STAGING    # rest-server staging JWT_SECRET
 ```
 
-Use the same value as rest-server production `JWT_SECRET`.
+Staging and production apps both call this Worker; a token verifies if it matches either secret.
 
 ## HTTP
 
 Unauthenticated:
 
-- `GET /` or `GET /health` — `{ ok: true }` if the Worker and quota DB are up
+- `GET /` or `GET /health` — `{ ok: true }` if the Worker is configured
 
 All pack routes are `/v1/:lang/…` (`cs|de|en|es|fr|it|pl|pt`) and require
 `Authorization: Bearer <rest-server access JWT>` (`typ=access`). Each Linguagem
-user may make **10,000** pack calls per UTC day; further calls return **429** with
-`Retry-After` and `X-RateLimit-*` headers. Missing or refresh tokens return **401**.
+user may make **10 pack calls per 10 seconds** (about 1/s, with a short burst).
+Further calls return **429** with `Retry-After: 10` and `X-RateLimit-Limit: 10`.
+Missing or refresh tokens return **401**.
 
 - `GET /meta`
 - `GET /lookup?q=&limit=` — exact lemma or variation

@@ -1,2 +1,4 @@
-# Same value as rest-server JWT_SECRET. Copy to .dev.vars for local wrangler.
+# Rest-server access JWT secrets. Copy to .dev.vars for local wrangler.
+# Local worker only needs JWT_SECRET (match local rest-server).
 JWT_SECRET=change-me-local
+# JWT_SECRET_STAGING=change-me-staging

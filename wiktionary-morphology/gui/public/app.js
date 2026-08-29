@@ -109,9 +109,7 @@ function highlightHtml(text, needle) {
 }
 
 function highlightNeedle() {
-  const q = query.trim();
-  if (!q || q.startsWith("*") || q.startsWith("(")) return "";
-  return q.replace(/\*+$/, "");
+  return query.trim();
 }
 
 function distributeToColumns(items, columnCount) {

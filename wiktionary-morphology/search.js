@@ -1,22 +1,13 @@
 /**
- * Pattern search over a morphology SQLite pack.
+ * Pack lookup matching the production dictionary API:
+ *   empty     A–Z browse
+ *   exact     lemma or form equals q
+ *   contains  lemma or form contains q
  *
- * Supported patterns (prefix-oriented, like linguagem dictionary):
- *   word     exact
- *   re*      prefix
- *   (a|b)    top-level OR of exact / prefix
+ * No prefix / suffix / OR pattern language.
  */
 
 import Database from "better-sqlite3";
-
-/** @typedef {'exact' | 'prefix'} PatternMode */
-/** @typedef {'all' | 'lemmas' | 'variations'} SearchScope */
-
-/**
- * @typedef {object} ParsedAtom
- * @property {PatternMode} mode
- * @property {string} value
- */
 
 /**
  * Escape LIKE metacharacters; use `\` as ESCAPE char.
@@ -24,62 +15,6 @@ import Database from "better-sqlite3";
  */
 export function escapeLike(s) {
   return s.replace(/([\\%_])/g, "\\$1");
-}
-
-/**
- * Normalize a token value (trim + collapse internal whitespace).
- * @param {string} s
- */
-export function normalizeToken(s) {
-  return s.trim().replace(/\s+/g, " ");
-}
-
-/**
- * Parse one atom: exact or prefix only.
- * Suffix / contains patterns are not supported (no FTS / reverse indexes).
- * @param {string} raw
- * @returns {ParsedAtom | null}
- */
-export function parseAtom(raw) {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  // Reject suffix / contains (*er, *ill*)
-  if (trimmed.startsWith("*")) return null;
-
-  if (trimmed.endsWith("*") && trimmed.length > 1) {
-    const value = normalizeToken(trimmed.slice(0, -1));
-    return value ? { mode: "prefix", value } : null;
-  }
-  const value = normalizeToken(trimmed);
-  return value ? { mode: "exact", value } : null;
-}
-
-/**
- * Parse pattern into OR'd atoms. Supports `(a|b|c)` or a single atom.
- * @param {string} pattern
- * @returns {ParsedAtom[]}
- */
-export function parsePattern(pattern) {
-  const trimmed = pattern.trim();
-  if (!trimmed) return [];
-
-  if (trimmed.startsWith("(") && trimmed.endsWith(")")) {
-    const inner = trimmed.slice(1, -1);
-    if (!inner.includes("(") && !inner.includes(")")) {
-      const parts = inner.split("|");
-      /** @type {ParsedAtom[]} */
-      const atoms = [];
-      for (const part of parts) {
-        const atom = parseAtom(part);
-        if (atom) atoms.push(atom);
-      }
-      return atoms;
-    }
-  }
-
-  const atom = parseAtom(trimmed);
-  return atom ? [atom] : [];
 }
 
 /**
@@ -108,196 +43,6 @@ export function listPos(db) {
     .prepare("SELECT DISTINCT pos FROM lemma_pos ORDER BY pos COLLATE NOCASE")
     .all()
     .map((r) => r.pos);
-}
-
-/**
- * @param {SearchScope} scope
- * @param {'lemma' | 'variation'} kind
- */
-function scopeAllows(scope, kind) {
-  if (scope === "all") return true;
-  if (scope === "lemmas") return kind === "lemma";
-  if (scope === "variations") return kind === "variation";
-  return false;
-}
-
-/**
- * Collect matching tokens for one atom (no pagination).
- * @param {import('better-sqlite3').Database} db
- * @param {ParsedAtom} atom
- * @param {SearchScope} scope
- * @param {string[]} poses
- * @param {number} hardCap
- * @returns {{ token: string, kind: 'lemma' | 'variation' }[]}
- */
-function matchAtom(db, atom, scope, poses, hardCap) {
-  /** @type {{ token: string, kind: 'lemma' | 'variation' }[]} */
-  const out = [];
-  const wantPos = poses.length > 0;
-  const posPlaceholders = poses.map(() => "?").join(",");
-
-  const lemmaPosFilter = wantPos
-    ? `AND EXISTS (
-         SELECT 1 FROM lemma_pos lp
-         WHERE lp.lemma = lemmas.lemma AND lp.pos IN (${posPlaceholders})
-       )`
-    : "";
-
-  const variationPosFilter = wantPos
-    ? `AND EXISTS (
-         SELECT 1 FROM variation_lemmas vl
-         JOIN lemma_pos lp ON lp.lemma = vl.lemma
-         WHERE vl.form = variations.form AND lp.pos IN (${posPlaceholders})
-       )`
-    : "";
-
-  const pushLemmaRows = (rows) => {
-    for (const row of rows) {
-      out.push({ token: row.lemma, kind: "lemma" });
-      if (out.length >= hardCap) return true;
-    }
-    return false;
-  };
-
-  const pushFormRows = (rows) => {
-    for (const row of rows) {
-      out.push({ token: row.form, kind: "variation" });
-      if (out.length >= hardCap) return true;
-    }
-    return false;
-  };
-
-  if (atom.mode === "exact") {
-    if (scopeAllows(scope, "lemma")) {
-      const sql = `SELECT lemma FROM lemmas WHERE lemma = ? ${lemmaPosFilter} LIMIT ?`;
-      const params = wantPos
-        ? [atom.value, ...poses, hardCap]
-        : [atom.value, hardCap];
-      if (pushLemmaRows(db.prepare(sql).all(...params))) return out;
-    }
-    if (scopeAllows(scope, "variation")) {
-      const sql = `SELECT form FROM variations WHERE form = ? ${variationPosFilter} LIMIT ?`;
-      const params = wantPos
-        ? [atom.value, ...poses, hardCap]
-        : [atom.value, hardCap];
-      pushFormRows(db.prepare(sql).all(...params));
-    }
-    return out;
-  }
-
-  if (atom.mode === "prefix") {
-    const like = `${escapeLike(atom.value)}%`;
-    if (scopeAllows(scope, "lemma")) {
-      const sql = `SELECT lemma FROM lemmas WHERE lemma LIKE ? ESCAPE '\\' ${lemmaPosFilter}
-                   ORDER BY lemma LIMIT ?`;
-      const params = wantPos
-        ? [like, ...poses, hardCap]
-        : [like, hardCap];
-      if (pushLemmaRows(db.prepare(sql).all(...params))) return out;
-    }
-    if (scopeAllows(scope, "variation")) {
-      const remaining = hardCap - out.length;
-      const sql = `SELECT form FROM variations WHERE form LIKE ? ESCAPE '\\' ${variationPosFilter}
-                   ORDER BY form LIMIT ?`;
-      const params = wantPos
-        ? [like, ...poses, remaining]
-        : [like, remaining];
-      pushFormRows(db.prepare(sql).all(...params));
-    }
-  }
-
-  return out;
-}
-
-/**
- * Enrich a token hit with POS / linked lemmas.
- * @param {import('better-sqlite3').Database} db
- * @param {{ token: string, kind: 'lemma' | 'variation' }} hit
- */
-function enrichHit(db, hit) {
-  if (hit.kind === "lemma") {
-    const poses = db
-      .prepare(
-        "SELECT pos FROM lemma_pos WHERE lemma = ? ORDER BY pos COLLATE NOCASE",
-      )
-      .all(hit.token)
-      .map((r) => r.pos);
-    return { token: hit.token, kind: hit.kind, poses, lemmas: [hit.token] };
-  }
-  const lemmas = db
-    .prepare(
-      "SELECT lemma FROM variation_lemmas WHERE form = ? ORDER BY lemma COLLATE NOCASE",
-    )
-    .all(hit.token)
-    .map((r) => r.lemma);
-  const poses = db
-    .prepare(
-      `SELECT DISTINCT lp.pos AS pos
-       FROM variation_lemmas vl
-       JOIN lemma_pos lp ON lp.lemma = vl.lemma
-       WHERE vl.form = ?
-       ORDER BY lp.pos COLLATE NOCASE`,
-    )
-    .all(hit.token)
-    .map((r) => r.pos);
-  return { token: hit.token, kind: hit.kind, poses, lemmas };
-}
-
-/**
- * Search morphology pack by pattern.
- *
- * @param {import('better-sqlite3').Database} db
- * @param {{
- *   pattern: string,
- *   scope?: SearchScope,
- *   pos?: string[],
- *   limit?: number,
- *   offset?: number,
- * }} opts
- */
-export function searchMorphology(db, opts) {
-  const pattern = opts.pattern ?? "";
-  const scope = opts.scope ?? "all";
-  const poses = (opts.pos ?? []).filter(Boolean);
-  const limit = Math.max(1, Math.min(opts.limit ?? 50, 500));
-  const offset = Math.max(0, opts.offset ?? 0);
-
-  const atoms = parsePattern(pattern);
-  if (!atoms.length) {
-    return { pattern, scope, atoms: [], total: 0, results: [] };
-  }
-
-  // Cap per-atom collection high enough for merge + pagination
-  const hardCap = Math.min(offset + limit + 5000, 20000);
-
-  /** @type {Map<string, { token: string, kind: 'lemma' | 'variation' }>} */
-  const merged = new Map();
-  for (const atom of atoms) {
-    const hits = matchAtom(db, atom, scope, poses, hardCap);
-    for (const hit of hits) {
-      const key = `${hit.kind}\0${hit.token}`;
-      if (!merged.has(key)) merged.set(key, hit);
-    }
-  }
-
-  const sorted = [...merged.values()].sort((a, b) => {
-    const c = a.token.localeCompare(b.token);
-    if (c !== 0) return c;
-    return a.kind.localeCompare(b.kind);
-  });
-
-  const total = sorted.length;
-  const page = sorted.slice(offset, offset + limit).map((hit) => enrichHit(db, hit));
-
-  return {
-    pattern,
-    scope,
-    atoms,
-    total,
-    offset,
-    limit,
-    results: page,
-  };
 }
 
 /**
@@ -392,71 +137,57 @@ export function getVariationDetail(db, form) {
 const FORM_PREVIEW_LIMIT = 5;
 
 /**
- * Forms for tile preview: prefix matches first, then remaining, capped.
+ * Forms for tile preview: contains matches first, then remaining, capped.
  * @param {string[]} forms
- * @param {string} prefix
+ * @param {string} needle
  * @param {number} limit
  */
-export function previewForms(forms, prefix, limit = FORM_PREVIEW_LIMIT) {
-  const p = prefix.trim();
+export function previewForms(forms, needle, limit = FORM_PREVIEW_LIMIT) {
+  const p = needle.trim().toLowerCase();
   if (limit <= 0) return [];
   if (!p) return forms.slice(0, limit);
 
   const matched = [];
   const rest = [];
   for (const form of forms) {
-    if (form.startsWith(p)) matched.push(form);
+    if (form.toLowerCase().includes(p)) matched.push(form);
     else rest.push(form);
   }
   return [...matched, ...rest].slice(0, limit);
 }
 
 /**
- * True when pattern uses OR syntax (not plain dictionary prefix text).
- * @param {string} pattern
- */
-export function isAdvancedPattern(pattern) {
-  const t = pattern.trim();
-  return t.startsWith("(") && t.includes("|");
-}
-
-/**
- * Normalize GUI query to search pattern.
- * Plain text → prefix (`cas` → `cas*`) like linguagem dictionary.
- * Suffix / contains (`*er`, `*ill*`) are unsupported and yield no pattern.
- * @param {string} query
- */
-export function dictionaryPatternFromQuery(query) {
-  const q = query.trim();
-  if (!q) return "";
-  if (q.startsWith("*")) return "";
-  if (isAdvancedPattern(q)) return q;
-  if (q.endsWith("*")) return q;
-  return `${q}*`;
-}
-
-/**
  * @param {import('better-sqlite3').Database} db
  * @param {string} lemma
- * @param {string} highlightPrefix
+ * @param {string} needle
  */
-function lemmaTile(db, lemma, highlightPrefix) {
+function lemmaTile(db, lemma, needle) {
   const detail = getLemmaDetail(db, lemma);
   if (!detail) return null;
-  const formCount = detail.forms.length;
   return {
     lemma: detail.lemma,
     poses: detail.poses,
-    formCount,
-    previewForms: previewForms(detail.forms, highlightPrefix, FORM_PREVIEW_LIMIT),
+    formCount: detail.forms.length,
+    previewForms: previewForms(detail.forms, needle, FORM_PREVIEW_LIMIT),
+  };
+}
+
+function posFilterSql(alias, poses) {
+  if (!poses.length) return { sql: "", params: [] };
+  const ph = poses.map(() => "?").join(",");
+  return {
+    sql: `AND EXISTS (
+         SELECT 1 FROM lemma_pos lp
+         WHERE lp.lemma = ${alias}.lemma AND lp.pos IN (${ph})
+       )`,
+    params: poses,
   };
 }
 
 /**
- * Browse / search lemmas like the linguagem dictionary page.
+ * Browse / search lemmas like the dictionary page.
  *
- * Empty query → A–Z browse. Plain text → prefix (lemma ∪ form→lemma).
- * Explicit `re*` and `(a|b)` OR also supported.
+ * Empty query → A–Z browse. Typed query → contains (lemma ∪ form→lemma).
  *
  * @param {import('better-sqlite3').Database} db
  * @param {{
@@ -475,27 +206,29 @@ export function queryDictionaryPage(db, opts) {
   const page = Math.max(1, Math.floor(opts.page ?? 1));
   const offset = (page - 1) * pageSize;
   const orderSql = sort === "lemma-desc" ? "DESC" : "ASC";
-  const highlightPrefix = (() => {
-    const q = query.trim();
-    if (!q || q.startsWith("*") || q.startsWith("(")) return "";
-    return q.replace(/\*+$/, "");
-  })();
+  const pos = posFilterSql("hits", poses);
 
-  /** @type {string[]} */
-  let lemmas;
+  const pageResult = (lemmas, total) => ({
+    query,
+    pos: poses,
+    sort,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize) || 1),
+    entries: lemmas.map((lemma) => lemmaTile(db, lemma, query)).filter(Boolean),
+  });
 
   if (!query) {
-    // Browse all lemmas (optional POS filter)
     if (poses.length) {
       const ph = poses.map(() => "?").join(",");
-      const totalRow = db
+      const total = db
         .prepare(
           `SELECT COUNT(DISTINCT lp.lemma) AS n
            FROM lemma_pos lp
            WHERE lp.pos IN (${ph})`,
         )
-        .get(...poses);
-      const total = totalRow?.n ?? 0;
+        .get(...poses)?.n ?? 0;
       const rows = db
         .prepare(
           `SELECT DISTINCT lp.lemma AS lemma
@@ -505,25 +238,13 @@ export function queryDictionaryPage(db, opts) {
            LIMIT ? OFFSET ?`,
         )
         .all(...poses, pageSize, offset);
-      lemmas = rows.map((r) => r.lemma);
-      const entries = lemmas
-        .map((lemma) => lemmaTile(db, lemma, highlightPrefix))
-        .filter(Boolean);
-      return {
-        query,
-        pattern: "",
-        pos: poses,
-        sort,
-        page,
-        pageSize,
+      return pageResult(
+        rows.map((r) => r.lemma),
         total,
-        totalPages: Math.max(1, Math.ceil(total / pageSize)),
-        entries,
-      };
+      );
     }
 
-    const totalRow = db.prepare("SELECT COUNT(*) AS n FROM lemmas").get();
-    const total = totalRow?.n ?? 0;
+    const total = db.prepare("SELECT COUNT(*) AS n FROM lemmas").get()?.n ?? 0;
     const rows = db
       .prepare(
         `SELECT lemma FROM lemmas
@@ -531,79 +252,37 @@ export function queryDictionaryPage(db, opts) {
          LIMIT ? OFFSET ?`,
       )
       .all(pageSize, offset);
-    lemmas = rows.map((r) => r.lemma);
-    const entries = lemmas
-      .map((lemma) => lemmaTile(db, lemma, highlightPrefix))
-      .filter(Boolean);
-    return {
-      query,
-      pattern: "",
-      pos: poses,
-      sort,
-      page,
-      pageSize,
+    return pageResult(
+      rows.map((r) => r.lemma),
       total,
-      totalPages: Math.max(1, Math.ceil(total / pageSize) || 1),
-      entries,
-    };
+    );
   }
 
-  // Search → unique lemmas (dictionary-style union)
-  const pattern = dictionaryPatternFromQuery(query);
-  const hardCap = 20000;
-  const atoms = parsePattern(pattern);
-  /** @type {Set<string>} */
-  const lemmaSet = new Set();
+  const like = `%${escapeLike(query)}%`;
+  const hitsSql = `SELECT lemma FROM (
+       SELECT lemma FROM lemmas WHERE lemma LIKE ? ESCAPE '\\'
+       UNION
+       SELECT vl.lemma AS lemma
+       FROM variations v
+       JOIN variation_lemmas vl ON vl.form = v.form
+       WHERE v.form LIKE ? ESCAPE '\\'
+     ) AS hits
+     WHERE 1=1 ${pos.sql}`;
 
-  for (const atom of atoms) {
-    const hits = matchAtom(db, atom, "all", poses, hardCap);
-    for (const hit of hits) {
-      if (hit.kind === "lemma") {
-        lemmaSet.add(hit.token);
-      } else {
-        const linked = db
-          .prepare(
-            "SELECT lemma FROM variation_lemmas WHERE form = ?",
-          )
-          .all(hit.token);
-        for (const row of linked) lemmaSet.add(row.lemma);
-      }
-    }
-  }
+  const total =
+    db
+      .prepare(`SELECT COUNT(*) AS n FROM (${hitsSql}) AS counted`)
+      .get(like, like, ...pos.params)?.n ?? 0;
+  const rows = db
+    .prepare(
+      `${hitsSql}
+       ORDER BY hits.lemma COLLATE NOCASE ${orderSql}
+       LIMIT ? OFFSET ?`,
+    )
+    .all(like, like, ...pos.params, pageSize, offset);
 
-  lemmas = [...lemmaSet].sort((a, b) => {
-    const c = a.localeCompare(b, undefined, { sensitivity: "base" });
-    return sort === "lemma-desc" ? -c : c;
-  });
-
-  // Re-apply POS filter on lemmas when search returned form hits
-  if (poses.length) {
-    const want = new Set(poses);
-    lemmas = lemmas.filter((lemma) => {
-      const rows = db
-        .prepare("SELECT pos FROM lemma_pos WHERE lemma = ?")
-        .all(lemma);
-      return rows.some((r) => want.has(r.pos));
-    });
-  }
-
-  const total = lemmas.length;
-  const pageLemmas = lemmas.slice(offset, offset + pageSize);
-  const entries = pageLemmas
-    .map((lemma) => lemmaTile(db, lemma, highlightPrefix))
-    .filter(Boolean);
-
-  return {
-    query,
-    pattern,
-    atoms,
-    pos: poses,
-    sort,
-    page,
-    pageSize,
+  return pageResult(
+    rows.map((r) => r.lemma),
     total,
-    totalPages: Math.max(1, Math.ceil(total / pageSize) || 1),
-    entries,
-  };
+  );
 }
-

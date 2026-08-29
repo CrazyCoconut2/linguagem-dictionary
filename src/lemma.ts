@@ -101,6 +101,71 @@ export async function listFormsForLemma(
   return rows.map((r) => r.form);
 }
 
+async function listPosByLemmas(
+  db: D1Database,
+  lemmas: string[],
+): Promise<Map<string, string[]>> {
+  const posesByLemma = new Map<string, string[]>();
+  for (const lemma of lemmas) posesByLemma.set(lemma, []);
+  if (lemmas.length === 0) return posesByLemma;
+  for (let offset = 0; offset < lemmas.length; offset += BIND_CHUNK) {
+    const chunk = lemmas.slice(offset, offset + BIND_CHUNK);
+    const rows = await selectRows<{ lemma: string; pos: string }>(
+      db,
+      `SELECT lemma, pos FROM lemma_pos
+       WHERE lemma IN (${posPlaceholders(chunk.length)})
+       ORDER BY pos COLLATE NOCASE`,
+      chunk,
+    );
+    for (const row of rows) {
+      const lemma = typeof row.lemma === 'string' ? row.lemma.trim() : '';
+      const pos = typeof row.pos === 'string' ? row.pos.trim() : '';
+      if (!lemma || !pos) continue;
+      const list = posesByLemma.get(lemma);
+      if (list) {
+        if (!list.includes(pos)) list.push(pos);
+      } else {
+        posesByLemma.set(lemma, [pos]);
+      }
+    }
+  }
+  return posesByLemma;
+}
+
+async function hydrateLookupMatches(
+  db: D1Database,
+  rows: Array<{ lemma: string; via: string }>,
+  cap: number,
+): Promise<DictionaryTermLookupMatch[]> {
+  const seen = new Set<string>();
+  const ordered: Array<{ lemma: string; via: 'lemma' | 'form' }> = [];
+  for (const row of rows) {
+    const lemma = String(row.lemma ?? '').trim();
+    if (!lemma) continue;
+    const dedupeKey = lemma.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    ordered.push({ lemma, via: row.via === 'lemma' ? 'lemma' : 'form' });
+    if (ordered.length >= cap) break;
+  }
+  const posesByLemma = await listPosByLemmas(
+    db,
+    ordered.map((item) => item.lemma),
+  );
+  const lemmaHits: DictionaryTermLookupMatch[] = [];
+  const formHits: DictionaryTermLookupMatch[] = [];
+  for (const item of ordered) {
+    const match: DictionaryTermLookupMatch = {
+      lemma: item.lemma,
+      partsOfSpeech: posesByLemma.get(item.lemma) ?? [],
+      via: item.via,
+    };
+    if (item.via === 'lemma') lemmaHits.push(match);
+    else formHits.push(match);
+  }
+  return [...lemmaHits, ...formHits];
+}
+
 export async function lookupDictionaryTerm(
   db: D1Database,
   term: string,
@@ -108,10 +173,11 @@ export async function lookupDictionaryTerm(
 ): Promise<DictionaryTermLookupMatch[]> {
   const key = term.trim();
   if (!key) return [];
-  const cap =
+  const requested =
     typeof options?.limit === 'number' && options.limit > 0
       ? Math.floor(options.limit)
       : TERM_LOOKUP_LIMIT;
+  const cap = requested;
 
   const rows = await selectRows<{ lemma: string; via: string }>(
     db,
@@ -125,26 +191,7 @@ export async function lookupDictionaryTerm(
     [key, key, cap + 5],
   );
 
-  const seen = new Set<string>();
-  const lemmaHits: DictionaryTermLookupMatch[] = [];
-  const formHits: DictionaryTermLookupMatch[] = [];
-  for (const row of rows) {
-    const lemma = String(row.lemma ?? '').trim();
-    if (!lemma) continue;
-    const dedupeKey = lemma.toLowerCase();
-    if (seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
-    const via = row.via === 'lemma' ? 'lemma' : 'form';
-    const match: DictionaryTermLookupMatch = {
-      lemma,
-      partsOfSpeech: await listPosForLemma(db, lemma),
-      via,
-    };
-    if (via === 'lemma') lemmaHits.push(match);
-    else formHits.push(match);
-    if (lemmaHits.length + formHits.length >= cap) break;
-  }
-  return [...lemmaHits, ...formHits];
+  return hydrateLookupMatches(db, rows, cap);
 }
 
 export async function getDictionaryEntry(
