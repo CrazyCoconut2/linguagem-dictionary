@@ -39,10 +39,10 @@ Fallback: `https://linguagem-dictionary-api.mohammed-tigrini.workers.dev`
 Pushes to `main` (and manual **Run workflow**) typecheck then deploy the Worker.
 Pull requests only typecheck.
 
-Add these repository secrets (same account as `linguagem-app`):
+Add these repository secrets (same account as `linguagem-app` / morphology `.env`):
 
 - `CLOUDFLARE_API_TOKEN` — Account permission **Workers Scripts: Edit** (and **D1: Edit** if you also import packs from CI)
-- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID for this Worker
+- `R2_ACCOUNT_ID` — Cloudflare account ID (same value as morphology `R2_ACCOUNT_ID`)
 
 JWT secrets are Wrangler secrets on the Worker, not GitHub secrets:
 
