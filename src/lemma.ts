@@ -30,32 +30,19 @@ export type DictionaryLemmaSenseStats = {
 
 export type DictionaryLemmaListResult = {
   entries: DictionaryLemmaEntry[];
-  formsByLemma: Record<string, string[]>;
   formCountByLemma: Record<string, number>;
   senseCountByLemma: Record<string, number>;
   exampleCountByLemma: Record<string, number>;
   previewDefinitionByLemma: Record<string, string>;
-  missing: string[];
 };
 
 const TERM_LOOKUP_LIMIT = 20;
-const FORM_PREVIEW_FETCH_LIMIT = 48;
-const FORM_PREVIEW_DISPLAY_LIMIT = 5;
 
 function buildLemmaEntry(lemma: string, poses: string[]): DictionaryLemmaEntry {
   return {
     lemma,
     partsOfSpeech: [...new Set(poses)].filter(Boolean).sort((a, b) => a.localeCompare(b)),
   };
-}
-
-export async function listPosForLemma(db: D1Database, lemma: string): Promise<string[]> {
-  const rows = await selectRows<{ pos: string }>(
-    db,
-    `SELECT pos FROM lemma_pos WHERE lemma = ? ORDER BY pos COLLATE NOCASE`,
-    [lemma],
-  );
-  return rows.map((r) => r.pos);
 }
 
 async function listPosAndSensesForLemma(
@@ -71,34 +58,6 @@ async function listPosAndSensesForLemma(
     .map((row) => (typeof row.pos === 'string' ? row.pos.trim() : ''))
     .filter(Boolean);
   return { poses, sensesByPos: sensesByPosFromRows(rows) };
-}
-
-export async function listFormsForLemma(
-  db: D1Database,
-  lemma: string,
-  options?: { limit?: number },
-): Promise<string[]> {
-  const key = lemma.trim();
-  if (!key) return [];
-  const cap =
-    typeof options?.limit === 'number' && options.limit > 0 ? Math.floor(options.limit) : null;
-  if (cap == null) {
-    const rows = await selectRows<{ form: string }>(
-      db,
-      `SELECT form FROM variation_lemmas WHERE lemma = ? ORDER BY form COLLATE NOCASE`,
-      [key],
-    );
-    return rows.map((r) => r.form);
-  }
-  const rows = await selectRows<{ form: string }>(
-    db,
-    `SELECT form FROM variation_lemmas
-     WHERE lemma = ?
-     ORDER BY form COLLATE NOCASE
-     LIMIT ?`,
-    [key, cap],
-  );
-  return rows.map((r) => r.form);
 }
 
 async function listPosByLemmas(
@@ -194,19 +153,6 @@ export async function lookupDictionaryTerm(
   return hydrateLookupMatches(db, rows, cap);
 }
 
-export async function getDictionaryEntry(
-  db: D1Database,
-  lemma: string,
-): Promise<DictionaryLemmaEntry | null> {
-  const key = lemma.trim();
-  if (!key) return null;
-  const row = (
-    await selectRows<{ lemma: string }>(db, `SELECT lemma FROM lemmas WHERE lemma = ? LIMIT 1`, [key])
-  )[0];
-  if (!row) return null;
-  return buildLemmaEntry(key, await listPosForLemma(db, key));
-}
-
 export async function getLemmaDetail(
   db: D1Database,
   lemma: string,
@@ -227,16 +173,6 @@ export async function getLemmaDetail(
     .map((r) => (typeof r.form === 'string' ? r.form.trim() : ''))
     .filter((form) => form && form !== key);
   return { ...buildLemmaEntry(key, poses), forms, sensesByPos };
-}
-
-export async function listDistinctPos(db: D1Database, maxValues = 200): Promise<string[]> {
-  const cap = Math.max(1, Math.min(2000, maxValues));
-  const rows = await selectRows<{ pos: string }>(
-    db,
-    `SELECT DISTINCT pos FROM lemma_pos ORDER BY pos COLLATE NOCASE LIMIT ?`,
-    [cap],
-  );
-  return rows.map((r) => r.pos);
 }
 
 async function listExistingLemmas(db: D1Database, lemmas: string[]): Promise<Set<string>> {
@@ -310,46 +246,27 @@ async function loadEntries(
   return { entries, senseCountByLemma, exampleCountByLemma, previewDefinitionByLemma };
 }
 
-async function loadPreviewForms(
+async function loadFormCounts(
   db: D1Database,
   lemmas: string[],
-): Promise<{ formsByLemma: Record<string, string[]>; formCountByLemma: Record<string, number> }> {
-  const formsByLemma: Record<string, string[]> = {};
+): Promise<Record<string, number>> {
   const formCountByLemma: Record<string, number> = {};
-  if (lemmas.length === 0) return { formsByLemma, formCountByLemma };
-  for (const lemma of lemmas) {
-    formsByLemma[lemma] = [];
-    formCountByLemma[lemma] = 0;
-  }
-  const rows = await selectRows<{ lemma: string; form: string; cnt: number }>(
+  if (lemmas.length === 0) return formCountByLemma;
+  for (const lemma of lemmas) formCountByLemma[lemma] = 0;
+  const rows = await selectRows<{ lemma: string; cnt: number }>(
     db,
-    `SELECT lemma, form, cnt FROM (
-       SELECT lemma, form,
-         COUNT(*) OVER (PARTITION BY lemma) AS cnt,
-         ROW_NUMBER() OVER (PARTITION BY lemma ORDER BY form) AS rn
-       FROM variation_lemmas
-       WHERE lemma IN (${posPlaceholders(lemmas.length)})
-     ) AS ranked
-     WHERE rn <= ?`,
-    [...lemmas, FORM_PREVIEW_FETCH_LIMIT],
+    `SELECT lemma, COUNT(*) AS cnt
+     FROM variation_lemmas
+     WHERE lemma IN (${posPlaceholders(lemmas.length)})
+     GROUP BY lemma`,
+    lemmas,
   );
-  const collected = new Map<string, string[]>();
   for (const row of rows) {
-    const lemma = row.lemma;
-    const form = row.form;
-    if (typeof lemma !== 'string' || typeof form !== 'string') continue;
-    if (typeof row.cnt === 'number') formCountByLemma[lemma] = row.cnt;
-    let list = collected.get(lemma);
-    if (!list) {
-      list = [];
-      collected.set(lemma, list);
-    }
-    list.push(form);
+    if (typeof row.lemma !== 'string' || row.cnt == null) continue;
+    const n = Number(row.cnt);
+    if (Number.isFinite(n)) formCountByLemma[row.lemma] = n;
   }
-  for (const lemma of lemmas) {
-    formsByLemma[lemma] = (collected.get(lemma) ?? []).slice(0, FORM_PREVIEW_DISPLAY_LIMIT);
-  }
-  return { formsByLemma, formCountByLemma };
+  return formCountByLemma;
 }
 
 export async function listEntriesForLemmas(
@@ -358,22 +275,18 @@ export async function listEntriesForLemmas(
 ): Promise<DictionaryLemmaListResult> {
   const empty: DictionaryLemmaListResult = {
     entries: [],
-    formsByLemma: {},
     formCountByLemma: {},
     senseCountByLemma: {},
     exampleCountByLemma: {},
     previewDefinitionByLemma: {},
-    missing: [],
   };
   const keys = [...new Set(lemmas.map((item) => item.trim()).filter(Boolean))];
   if (keys.length === 0) return empty;
   const existing = await listExistingLemmas(db, keys);
   const present = keys.filter((lemma) => existing.has(lemma));
-  const missing = keys.filter((lemma) => !existing.has(lemma));
-  if (present.length === 0) return { ...empty, missing };
+  if (present.length === 0) return empty;
 
   const entries: DictionaryLemmaEntry[] = [];
-  const formsByLemma: Record<string, string[]> = {};
   const formCountByLemma: Record<string, number> = {};
   const senseCountByLemma: Record<string, number> = {};
   const exampleCountByLemma: Record<string, number> = {};
@@ -382,10 +295,8 @@ export async function listEntriesForLemmas(
   for (let offset = 0; offset < present.length; offset += BIND_CHUNK) {
     const chunk = present.slice(offset, offset + BIND_CHUNK);
     const loaded = await loadEntries(db, chunk);
-    const forms = await loadPreviewForms(db, chunk);
     entries.push(...loaded.entries);
-    Object.assign(formsByLemma, forms.formsByLemma);
-    Object.assign(formCountByLemma, forms.formCountByLemma);
+    Object.assign(formCountByLemma, await loadFormCounts(db, chunk));
     Object.assign(senseCountByLemma, loaded.senseCountByLemma);
     Object.assign(exampleCountByLemma, loaded.exampleCountByLemma);
     Object.assign(previewDefinitionByLemma, loaded.previewDefinitionByLemma);
@@ -393,12 +304,10 @@ export async function listEntriesForLemmas(
 
   return {
     entries,
-    formsByLemma,
     formCountByLemma,
     senseCountByLemma,
     exampleCountByLemma,
     previewDefinitionByLemma,
-    missing,
   };
 }
 
@@ -426,24 +335,4 @@ export async function listSenseStatsForLemmas(
     Object.assign(previewDefinitionByLemma, loaded.previewDefinitionByLemma);
   }
   return { senseCountByLemma, exampleCountByLemma, previewDefinitionByLemma };
-}
-
-export async function getPackMetaVersion(db: D1Database): Promise<{
-  schemaVersion: string | null;
-  version: number | null;
-}> {
-  const schema = await selectRows<{ value?: string }>(
-    db,
-    `SELECT value FROM meta WHERE key = ?`,
-    ['schema_version'],
-  );
-  const ver = await selectRows<{ value?: string }>(db, `SELECT value FROM meta WHERE key = ?`, [
-    'version',
-  ]);
-  const raw = ver[0]?.value;
-  const n = raw == null ? null : Number(raw);
-  return {
-    schemaVersion: typeof schema[0]?.value === 'string' ? schema[0].value : null,
-    version: n != null && Number.isFinite(n) ? n : null,
-  };
 }

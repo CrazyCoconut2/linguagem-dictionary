@@ -59,15 +59,12 @@ Unauthenticated:
 
 - `GET /` or `GET /health` — `{ ok: true }` if the Worker is configured
 
-All pack routes are `/v1/:lang/…` (`cs|de|en|es|fr|it|pl|pt`) and require
+All dictionary routes are `/v1/:lang/…` (`cs|de|en|es|fr|it|pl|pt`) and require
 `Authorization: Bearer <rest-server access JWT>` (`typ=access`). Each Linguagem
-user may make **10 pack calls per 10 seconds** (about 1/s, with a short burst).
+user may make **10 calls per 10 seconds** (about 1/s, with a short burst).
 Further calls return **429** with `Retry-After: 10` and `X-RateLimit-Limit: 10`.
 Missing or refresh tokens return **401**.
 
-- `GET /meta`
 - `GET /lookup?q=&limit=` — exact lemma or variation
-- `GET /pos`
 - `GET /lemmas/:lemma`
-- `GET /lemmas/:lemma/forms`
 - `POST /lemmas/batch` `{ lemmas, stats? }`
