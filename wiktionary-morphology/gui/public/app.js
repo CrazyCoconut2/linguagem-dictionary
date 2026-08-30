@@ -340,7 +340,7 @@ async function loadLanguages() {
   for (const item of data.languages) {
     const opt = document.createElement("option");
     opt.value = item.lang;
-    opt.textContent = item.version ? `${item.lang} · ${item.version}` : item.lang;
+    opt.textContent = item.lang;
     els.lang.appendChild(opt);
   }
   readUrl();

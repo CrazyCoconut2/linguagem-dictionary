@@ -3,7 +3,6 @@
  *
  * Input map keys: "lemma\0pos" → { forms: Set<form>, senses: Sense[] }
  * Output: <lang>.sqlite
- * Pack version lives in meta.version (not the filename).
  *
  * Indexed on lemma + form PKs (B-tree). No FTS.
  * Exact lookup uses equality; contains uses LIKE '%q%'.
@@ -19,8 +18,6 @@ import {
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = "3";
-
 /** Normalize / validate language code used as the pack basename. */
 export function packLang(lang) {
   const code = String(lang ?? "").trim().toLowerCase();
@@ -29,16 +26,6 @@ export function packLang(lang) {
     throw new Error(`Invalid lang: ${lang}`);
   }
   return code;
-}
-
-/** Validate pack version stored in meta (not in the filename). */
-export function validateVersion(version) {
-  const ver = String(version ?? "").trim();
-  if (!ver) throw new Error("version is required");
-  if (/[/\\]/.test(ver) || ver.includes("..")) {
-    throw new Error(`Invalid version: ${version}`);
-  }
-  return ver;
 }
 
 /**
@@ -53,21 +40,6 @@ export function parsePackFileName(name) {
     return null;
   }
   return { lang: stem.toLowerCase(), stem: stem.toLowerCase() };
-}
-
-/**
- * Read a meta value from a pack without keeping the DB open.
- * @param {string} sqlitePath
- * @param {string} key
- */
-export function readPackMeta(sqlitePath, key) {
-  const db = new Database(sqlitePath, { readonly: true, fileMustExist: true });
-  try {
-    const row = db.prepare("SELECT value FROM meta WHERE key = ?").get(key);
-    return row?.value ?? null;
-  } finally {
-    db.close();
-  }
 }
 
 export const SCHEMA_SQL = `
@@ -189,12 +161,11 @@ export function aggregateMorphologyMap(map) {
  *
  * @param {string} outPath  default …/<lang>.sqlite
  * @param {Map<string, Set<string> | { forms: Set<string>, senses: unknown[], senseKeys?: Set<string> }>} map
- * @param {{ lang: string, version: string, includeSenses?: boolean, onProgress?: (msg: string) => void }} opts
+ * @param {{ lang: string, includeSenses?: boolean, onProgress?: (msg: string) => void }} opts
  * @returns {Promise<{ lemmaCount: number, variationCount: number, sqlitePath: string }>}
  */
 export async function writeSqlitePack(outPath, map, opts) {
   const lang = packLang(opts.lang);
-  const version = validateVersion(opts.version);
   const includeSenses = opts.includeSenses !== false;
   const { onProgress } = opts;
   const { sqlitePath } = resolvePackPaths(outPath);
@@ -245,8 +216,6 @@ export async function writeSqlitePack(outPath, map, opts) {
       "INSERT INTO meta (key, value) VALUES (?, ?)",
     );
     insertMeta.run("lang", lang);
-    insertMeta.run("version", version);
-    insertMeta.run("schema_version", SCHEMA_VERSION);
     insertMeta.run("senses", includeSenses ? "1" : "0");
     insertMeta.run("built_at", new Date().toISOString());
 

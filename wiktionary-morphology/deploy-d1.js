@@ -21,7 +21,7 @@ import { createWriteStream, existsSync, mkdtempSync, readdirSync, rmSync, statSy
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parsePackFileName, readPackMeta } from "./sqlite-pack.js";
+import { parsePackFileName } from "./sqlite-pack.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DIR = resolve(__dirname, "wiktionary-morphology-packs");
@@ -30,7 +30,6 @@ const DEFAULT_API_DIR = resolve(__dirname, "..");
 function parseArgs(argv) {
   const opts = {
     langs: [],
-    version: null,
     dir: DEFAULT_DIR,
     apiDir: process.env.DICTIONARY_API_DIR
       ? resolve(process.env.DICTIONARY_API_DIR)
@@ -47,9 +46,6 @@ function parseArgs(argv) {
       const code = String(argv[++i] ?? "").toLowerCase();
       if (!code) throw new Error("--lang expects a language code");
       if (code !== "all") opts.langs.push(code);
-    } else if (arg === "--version") {
-      opts.version = String(argv[++i] ?? "").trim();
-      if (!opts.version) throw new Error("--version expects a value");
     } else if (arg === "--dir") {
       opts.dir = resolve(String(argv[++i] ?? ""));
       if (!opts.dir) throw new Error("--dir expects a path");
@@ -79,7 +75,6 @@ Dump <lang>.sqlite packs and import them into D1 (dict-<lang>) via wrangler.
 
 Options:
   --lang CODE     Only this language (repeatable; "all" = every pack)
-  --version VER   Only packs whose meta.version matches
   --dir PATH      Pack directory (default: wiktionary-morphology-packs/)
   --api-dir PATH  linguagem-dictionary-api root (default: parent directory)
   --local         Import into wrangler local D1 (default: --remote)
@@ -101,26 +96,19 @@ function formatBytes(n) {
   return `${v.toFixed(digits)} ${units[i]}`;
 }
 
-function listPackFiles(dir, langs, version) {
+function listPackFiles(dir, langs) {
   if (!existsSync(dir)) {
     throw new Error(`No pack directory: ${dir}`);
   }
 
-  /** @type {{ lang: string, version: string | null, path: string, size: number }[]} */
+  /** @type {{ lang: string, path: string, size: number }[]} */
   let files = [];
   for (const name of readdirSync(dir)) {
     const parsed = parsePackFileName(name);
     if (!parsed) continue;
     const path = resolve(dir, name);
-    let packVersion = null;
-    try {
-      packVersion = readPackMeta(path, "version");
-    } catch {
-      packVersion = null;
-    }
     files.push({
       lang: parsed.lang,
-      version: packVersion,
       path,
       size: statSync(path).size,
     });
@@ -129,9 +117,6 @@ function listPackFiles(dir, langs, version) {
   if (langs.length) {
     const want = new Set(langs);
     files = files.filter((f) => want.has(f.lang));
-  }
-  if (version) {
-    files = files.filter((f) => f.version === version);
   }
 
   files.sort((a, b) => a.lang.localeCompare(b.lang));
@@ -227,7 +212,7 @@ async function main() {
     return;
   }
 
-  const files = listPackFiles(opts.dir, opts.langs, opts.version);
+  const files = listPackFiles(opts.dir, opts.langs);
   const target = opts.local ? "local D1" : "remote D1";
   console.log(`api:    ${opts.apiDir}`);
   console.log(`target: ${target}`);
@@ -239,8 +224,7 @@ async function main() {
 
   if (opts.dryRun) {
     for (const file of files) {
-      const ver = file.version ? `  meta.version=${file.version}` : "";
-      console.log(`would import  dict-${file.lang}  (${formatBytes(file.size)})${ver}`);
+      console.log(`would import  dict-${file.lang}  (${formatBytes(file.size)})`);
     }
     return;
   }

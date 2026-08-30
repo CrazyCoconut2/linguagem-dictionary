@@ -5,14 +5,13 @@
  * Usage:
  *   node size-packs.js
  *   node size-packs.js --lang en
- *   node size-packs.js --lang en --version 1.0.0
  *   node size-packs.js --dir wiktionary-morphology-packs
  */
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parsePackFileName, readPackMeta } from "./sqlite-pack.js";
+import { parsePackFileName } from "./sqlite-pack.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DIR = resolve(__dirname, "wiktionary-morphology-packs");
@@ -20,7 +19,6 @@ const DEFAULT_DIR = resolve(__dirname, "wiktionary-morphology-packs");
 function parseArgs(argv) {
   const opts = {
     langs: [],
-    version: null,
     dir: DEFAULT_DIR,
     help: false,
   };
@@ -32,9 +30,6 @@ function parseArgs(argv) {
       const code = String(argv[++i] ?? "").toLowerCase();
       if (!code) throw new Error("--lang expects a language code");
       opts.langs.push(code);
-    } else if (arg === "--version") {
-      opts.version = String(argv[++i] ?? "").trim();
-      if (!opts.version) throw new Error("--version expects a value");
     } else if (arg === "--dir") {
       opts.dir = resolve(String(argv[++i] ?? ""));
       if (!opts.dir) throw new Error("--dir expects a path");
@@ -52,11 +47,10 @@ function printHelp() {
   console.log(`Usage: node ${script} [options]
 
 List SQLite pack sizes under wiktionary-morphology-packs/ (or --dir).
-Filenames: <lang>.sqlite (version is in meta.version)
+Filenames: <lang>.sqlite
 
 Options:
   --lang CODE     Only this language (repeatable)
-  --version VER   Only packs whose meta.version matches
   --dir PATH      Pack directory (default: wiktionary-morphology-packs/)
   --help          Show this help`);
 }
@@ -99,17 +93,6 @@ function main() {
   if (opts.langs.length) {
     const want = new Set(opts.langs);
     langs = langs.filter((lang) => want.has(lang));
-  }
-  if (opts.version) {
-    langs = langs.filter((lang) => {
-      const sqlitePath = resolve(opts.dir, `${lang}.sqlite`);
-      if (!existsSync(sqlitePath)) return false;
-      try {
-        return readPackMeta(sqlitePath, "version") === opts.version;
-      } catch {
-        return false;
-      }
-    });
   }
 
   if (!langs.length) {

@@ -3,19 +3,16 @@
  * Stage 2: stream a language dump, aggregate morphology into a pack.
  *
  * Usage:
- *   node build-morphology.js [file ...] --lang en --version 1.0.0 [options]
+ *   node build-morphology.js [file ...] --lang en [options]
  *
  * Writes a SQLite morphology DB:
  *   wiktionary-morphology-packs/<lang>.sqlite
- *
- * Pack version is stored in meta.version inside the database (not the filename).
  *
  * By default (no files), reads wiktionary-lang/<lang>.jsonl.gz — the combined
  * language dump from filter-lang-dumps.js.
  *
  * Options:
  *   --lang CODE     Language code (required)
- *   --version VER   Pack version written to meta (required), e.g. 1.0.0
  *   --out [PATH]    Output path (default: wiktionary-morphology-packs/<lang>.sqlite)
  *   --workers N     Worker threads (default: CPU count)
  *   --limit N       Stop after N scanned lines (smoke test)
@@ -31,7 +28,7 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { createGunzip } from "node:zlib";
 import { senseDedupeKey } from "./morphology.js";
-import { packLang, stripSenseKeys, validateVersion, writeSqlitePack } from "./sqlite-pack.js";
+import { packLang, stripSenseKeys, writeSqlitePack } from "./sqlite-pack.js";
 
 const BATCH_SIZE = 250;
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -74,7 +71,6 @@ function parseArgs(argv) {
   const opts = {
     files: [],
     lang: null,
-    version: null,
     out: null,
     workers: cpus().length || 4,
     limit: Infinity,
@@ -89,9 +85,6 @@ function parseArgs(argv) {
     } else if (arg === "--lang") {
       opts.lang = String(argv[++i] ?? "").toLowerCase();
       if (!opts.lang) throw new Error("--lang expects a language code");
-    } else if (arg === "--version") {
-      opts.version = String(argv[++i] ?? "").trim();
-      if (!opts.version) throw new Error("--version expects a value");
     } else if (arg === "--out") {
       const next = argv[i + 1];
       if (next && !next.startsWith("-")) {
@@ -125,19 +118,16 @@ function parseArgs(argv) {
 
 function printHelp() {
   const script = basename(fileURLToPath(import.meta.url));
-  console.log(`Usage: node ${script} [file ...] --lang CODE --version VER [options]
+  console.log(`Usage: node ${script} [file ...] --lang CODE [options]
 
 Aggregate morphology into a SQLite pack:
   wiktionary-morphology-packs/<lang>.sqlite
-
-Pack version is stored in meta.version (not the filename).
 
 With no files, streams wiktionary-lang/<lang>.jsonl.gz (combined language dump
 from filter-lang-dumps.js).
 
 Options:
   --lang CODE     Language code (required), e.g. en
-  --version VER   Pack version written to meta (required), e.g. 1.0.0
   --out [PATH]    Output path (default: wiktionary-morphology-packs/<lang>.sqlite)
   --workers N     Worker threads (default: CPU count)
   --limit N       Stop after N scanned lines (smoke test)
@@ -332,11 +322,7 @@ async function main() {
   if (!opts.lang) {
     throw new Error("--lang is required");
   }
-  if (!opts.version) {
-    throw new Error("--version is required");
-  }
   packLang(opts.lang);
-  validateVersion(opts.version);
 
   const outPath =
     opts.out === true || opts.out == null
@@ -351,7 +337,6 @@ async function main() {
   }
 
   console.error(`Lang: ${opts.lang}`);
-  console.error(`Version: ${opts.version}`);
   console.error(`Output: ${outPath}`);
   console.error(`Workers: ${opts.workers}`);
   console.error(
@@ -417,7 +402,6 @@ async function main() {
   );
   const result = await writeSqlitePack(outPath, map, {
     lang: opts.lang,
-    version: opts.version,
     onProgress: writeStatus,
   });
   process.stderr.write("\n");

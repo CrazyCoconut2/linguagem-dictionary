@@ -3,11 +3,10 @@
  * Stage 2 for every language: run build-morphology.js once per lang.
  *
  * Usage:
- *   node build-all.js --version 1.0.0 [options]
- *   npm run build -- --version 1.0.0
+ *   node build-all.js [options]
+ *   npm run build
  *
  * Options:
- *   --version VER   Pack version written to meta (required; forwarded)
  *   --lang CODE     Only this language (repeatable; default: all with a dump,
  *                   else cs de en es fr it pl pt)
  *   --workers N     Forwarded to build-morphology.js
@@ -27,7 +26,7 @@ const BUILD_PATH = resolve(__dirname, "build-morphology.js");
 const DEFAULT_LANGS = ["cs", "de", "en", "es", "fr", "it", "pl", "pt"];
 
 function parseArgs(argv) {
-  const opts = { langs: [], version: null, forward: [], help: false };
+  const opts = { langs: [], forward: [], help: false };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -37,10 +36,6 @@ function parseArgs(argv) {
       const code = String(argv[++i] ?? "").toLowerCase();
       if (!code) throw new Error("--lang expects a language code");
       opts.langs.push(code);
-    } else if (arg === "--version") {
-      opts.version = String(argv[++i] ?? "").trim();
-      if (!opts.version) throw new Error("--version expects a value");
-      opts.forward.push(arg, opts.version);
     } else if (arg === "--workers" || arg === "--limit") {
       const value = argv[++i];
       if (value == null || value.startsWith("-")) {
@@ -61,12 +56,11 @@ function parseArgs(argv) {
 
 function printHelp() {
   const script = basename(fileURLToPath(import.meta.url));
-  console.log(`Usage: node ${script} --version VER [options]
+  console.log(`Usage: node ${script} [options]
 
 Build morphology packs for all languages (sequential).
 
 Options:
-  --version VER   Pack version written to meta (required), e.g. 1.0.0
   --lang CODE     Only this language (repeatable)
   --workers N     Forwarded to build-morphology.js
   --limit N       Forwarded to build-morphology.js
@@ -114,13 +108,9 @@ async function main() {
     printHelp();
     return;
   }
-  if (!opts.version) {
-    throw new Error("--version is required");
-  }
 
   const langs = resolveLangs(opts.langs);
   console.error(`Building ${langs.length} language(s): ${langs.join(", ")}`);
-  console.error(`Version: ${opts.version}`);
   console.error("");
 
   const wallStart = Date.now();

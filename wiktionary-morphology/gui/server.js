@@ -159,13 +159,9 @@ function handleApi(req, res, packsDir, url) {
     const languages = listLanguages(packsDir).map((lang) => {
       const sqlitePath = dbPathFor(packsDir, lang);
       const st = statSync(sqlitePath);
-      let version = null;
-      let schemaVersion = null;
       let builtAt = null;
       try {
         const { db } = getDb(packsDir, lang);
-        version = getMeta(db, "version");
-        schemaVersion = getMeta(db, "schema_version");
         builtAt = getMeta(db, "built_at");
       } catch {
         /* ignore */
@@ -173,8 +169,6 @@ function handleApi(req, res, packsDir, url) {
       return {
         lang,
         size: st.size,
-        version,
-        schemaVersion,
         builtAt,
       };
     });
