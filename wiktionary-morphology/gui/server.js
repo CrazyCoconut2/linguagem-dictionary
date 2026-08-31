@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Local GUI to browse morphology SQLite packs (exact / contains lookup).
+ * Local GUI to browse morphology SQLite packs (A–Z browse + exact lookup).
  *
  * Usage:
  *   npm run gui

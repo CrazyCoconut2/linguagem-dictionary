@@ -211,7 +211,7 @@ function showEmpty(title, hint = "") {
 
 function renderTiles(entries) {
   if (!entries.length) {
-    showEmpty("No entries match", "Try a different search term or POS filter.");
+    showEmpty("No entries match", "Exact lemma or form only. Try a different term or POS filter.");
     return;
   }
 

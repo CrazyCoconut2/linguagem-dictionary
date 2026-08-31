@@ -1,21 +1,10 @@
 /**
  * Pack lookup matching the production dictionary API:
- *   empty     A–Z browse
- *   exact     lemma or form equals q
- *   contains  lemma or form contains q
- *
- * No prefix / suffix / OR pattern language.
+ *   empty  A–Z browse (local GUI only)
+ *   typed  exact lemma or form equals q (case-insensitive)
  */
 
 import Database from "better-sqlite3";
-
-/**
- * Escape LIKE metacharacters; use `\` as ESCAPE char.
- * @param {string} s
- */
-export function escapeLike(s) {
-  return s.replace(/([\\%_])/g, "\\$1");
-}
 
 /**
  * Open a morphology pack DB (read-only).
@@ -187,7 +176,7 @@ function posFilterSql(alias, poses) {
 /**
  * Browse / search lemmas like the dictionary page.
  *
- * Empty query → A–Z browse. Typed query → contains (lemma ∪ form→lemma).
+ * Empty query → A–Z browse. Typed query → exact lemma or form (case-insensitive).
  *
  * @param {import('better-sqlite3').Database} db
  * @param {{
@@ -258,28 +247,24 @@ export function queryDictionaryPage(db, opts) {
     );
   }
 
-  const like = `%${escapeLike(query)}%`;
   const hitsSql = `SELECT lemma FROM (
-       SELECT lemma FROM lemmas WHERE lemma LIKE ? ESCAPE '\\'
+       SELECT lemma FROM lemmas WHERE lemma = ? COLLATE NOCASE
        UNION
-       SELECT vl.lemma AS lemma
-       FROM variations v
-       JOIN variation_lemmas vl ON vl.form = v.form
-       WHERE v.form LIKE ? ESCAPE '\\'
+       SELECT lemma FROM variation_lemmas WHERE form = ? COLLATE NOCASE
      ) AS hits
      WHERE 1=1 ${pos.sql}`;
 
   const total =
     db
       .prepare(`SELECT COUNT(*) AS n FROM (${hitsSql}) AS counted`)
-      .get(like, like, ...pos.params)?.n ?? 0;
+      .get(query, query, ...pos.params)?.n ?? 0;
   const rows = db
     .prepare(
       `${hitsSql}
        ORDER BY hits.lemma COLLATE NOCASE ${orderSql}
        LIMIT ? OFFSET ?`,
     )
-    .all(like, like, ...pos.params, pageSize, offset);
+    .all(query, query, ...pos.params, pageSize, offset);
 
   return pageResult(
     rows.map((r) => r.lemma),

@@ -5,7 +5,7 @@
  * Output: <lang>.sqlite
  *
  * Indexed on lemma + form PKs (B-tree). No FTS.
- * Exact lookup uses equality; contains uses LIKE '%q%'.
+ * Lookup is exact equality on lemma or form (COLLATE NOCASE).
  *
  * Memory: writes by consuming the input map (no full byTerm/formToLemmas duplicate).
  */
